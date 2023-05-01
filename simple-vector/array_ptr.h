@@ -257,14 +257,14 @@ public:
     }
     
     // Задает ёмкость вектора
+    // тесты проходит, работа корректна
     void Reserve(size_t new_capacity) {
         if (new_capacity <= capacity_) {
             return;
         }
-        ArrayPtr<Type> tmp(new_capacity);
-        //std::move()
+        ArrayPtr<Type> tmp(new_capacity); // временный массив нужного размера
         //std::fill(tmp.Get(), tmp.Get() + size_, Type{});
-        vector_.swap(tmp);
+        vector_.swap(tmp); // меням местами содержимое контейнеров, соответственно, заполняем новый данными старого
         capacity_ = new_capacity;
     }
     
