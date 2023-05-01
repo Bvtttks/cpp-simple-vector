@@ -36,6 +36,7 @@ public:
     
     ArrayPtr& operator=(ArrayPtr&& rhs) noexcept {
         if (this != &rhs) {
+            raw_ptr_.Release();
             raw_ptr_ = rhs.Release();
         }
         return *this;
