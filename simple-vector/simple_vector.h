@@ -1,5 +1,3 @@
-// вставьте сюда ваш код для класса SimpleVector
-// внесите необходимые изменения для поддержки move-семантики
 #pragma once
  
 #include <iostream>
@@ -31,41 +29,55 @@ public:
  
     SimpleVector() noexcept = default;
     
+    // Создаёт вектор из size элементов, инициализированных значением по умолчанию
+    explicit SimpleVector(size_t size)
+        : SimpleVector(size, Type{})
+    {
+    }
+ 
+    // Создаёт вектор из size элементов, инициализированных значением value
+    SimpleVector(size_t size, const Type& value)
+        : vector_(size)
+        , size_(size)
+        , capacity_(size)
+    {
+        std::fill(vector_.Get(), vector_.Get() + size, value);
+    }
+ 
     // Создаёт вектор из std::initializer_list
-    SimpleVector(std::initializer_list<Type> init): vector_(init.size()), size_(init.size()), capacity_(init.size()) {
+    SimpleVector(std::initializer_list<Type> init)
+        : vector_(init.size())
+        , size_(init.size())
+        , capacity_(init.size())
+    {
         std::copy(init.begin(), init.end(), vector_.Get());
     }
     
-    // Создаёт вектор из size элементов, инициализированных значением по умолчанию
-    explicit SimpleVector(size_t size): SimpleVector(size, Type{}){}
- 
-    // Создаёт вектор из size элементов, инициализированных значением value
-    SimpleVector(size_t size, const Type& value): vector_(size), size_(size), capacity_(size) {
-        std::fill(vector_.Get(), vector_.Get() + size, value);
+    // Конструктор с резервированием
+    explicit SimpleVector(ReserveProxyObj capacity)
+            : vector_(capacity.value)
+            , size_(0)
+            , capacity_(capacity.value)
+    {
     }
-
+    
     // Конструктор копирования
-    SimpleVector(const SimpleVector& other): vector_(other.GetSize()), size_(other.GetSize()), capacity_(other.GetSize()) {
+    SimpleVector(const SimpleVector& other)
+        : vector_(other.GetSize())
+        , size_(other.GetSize())
+        , capacity_(other.GetSize())
+    {
         std::copy(other.begin(), other.end(), vector_.Get());
     }
     
-    // Конструктор с резервированием
-    explicit SimpleVector(ReserveProxyObj capacity): vector_(capacity.value), size_(0), capacity_(capacity.value){
-    }
-    
-    SimpleVector(SimpleVector&& other) noexcept: vector_(std::move(other.vector_)), size_(std::exchange(other.size_, 0)), capacity_(std::exchange(other.capacity_, 0)) {
+    SimpleVector(SimpleVector&& other) noexcept
+        : vector_(std::move(other.vector_))
+        , size_(std::exchange(other.size_, 0))
+        , capacity_(std::exchange(other.capacity_, 0))
+    {
     }
     
     // Оператор присваивания
-    SimpleVector& operator=(SimpleVector&& rhs) noexcept {
-        if (*this != rhs) {
-            vector_.swap(rhs.vector_);
-            size_ = std::exchange(rhs.size_, 0);
-            capacity_ = std::exchange(rhs.capacity_, 0);
-        }
-        return *this;
-    }
-    
     SimpleVector& operator=(const SimpleVector& rhs) {
         if (*this != rhs) {
             auto tmp = rhs;
@@ -73,10 +85,14 @@ public:
         }
         return *this;
     }
-    
-    // Сообщает, пустой ли массив
-    bool IsEmpty() const noexcept {
-        return size_ == 0;
+      
+    SimpleVector& operator=(SimpleVector&& rhs) noexcept {
+        if (*this != rhs) {
+            vector_.swap(rhs.vector_);
+            size_ = std::exchange(rhs.size_, 0);
+            capacity_ = std::exchange(rhs.capacity_, 0);
+        }
+        return *this;
     }
     
     // Возвращает количество элементов в массиве
@@ -87,6 +103,11 @@ public:
     // Возвращает вместимость массива
     size_t GetCapacity() const noexcept {
         return capacity_;
+    }
+ 
+    // Сообщает, пустой ли массив
+    bool IsEmpty() const noexcept {
+        return size_ == 0;
     }
  
     // Возвращает ссылку на элемент с индексом index
@@ -104,16 +125,18 @@ public:
     // Возвращает константную ссылку на элемент с индексом index
     // Выбрасывает исключение std::out_of_range, если index >= size
     Type& At(size_t index) {
-        if (index >= size_)
+        if (index >= size_) {
             throw std::out_of_range("out_of_range");
+        }
         return vector_[index];
     }
  
     // Возвращает константную ссылку на элемент с индексом index
     // Выбрасывает исключение std::out_of_range, если index >= size
     const Type& At(size_t index) const {
-        if (index >= size_)
+        if (index >= size_) {
             throw std::out_of_range("out_of_range");
+        }
         return vector_[index];
     }
  
@@ -131,16 +154,17 @@ public:
                 size_ = new_size;
                 return;
             }
-            size_ = new_size;
             std::generate(begin() + size_, begin() + new_size, [](){ return Type{}; });
+            size_ = new_size;
             return;
         }
         ArrayPtr<Type> tmp(new_size);
-        std::generate(tmp.Get() + size_, tmp.Get() + new_size, [](){ return Type{}; });
-        size_ = new_size;
-        capacity_ = std::max(new_size, capacity_ * 2);
         std::move(vector_.Get(), vector_.Get() + size_, tmp.Get());
+        std::generate(tmp.Get() + size_, tmp.Get() + new_size, [](){ return Type{}; });
+        // я думала-думала, но не догадалась, как без цикла мувать :`-(
+        // коллеги подсказали использовать generate
         vector_.swap(tmp);
+        size_ = new_size;
         capacity_ = std::max(new_size, capacity_ * 2);
         return;
     }
@@ -164,53 +188,55 @@ public:
         return;
     }
     
-    Iterator Insert(ConstIterator pos, Type&& value) {
-        assert(pos >= cbegin() && pos <= cend());
-        size_t index = (pos == end() ? size_ : pos - begin());
-        if (size_ == capacity_) {
-            if (capacity_ == 0) {
-                size_ = 1;
-                capacity_ = 1;
-                ArrayPtr<Type> tmp(1);
-                vector_.swap(tmp);
-                vector_[0] = std::move(value);
-                return begin();
-            }
-            ++size_;
-            capacity_ *= 2;
-            ArrayPtr<Type> tmp(capacity_ * 2);
-            std::move(begin(), vector_.Get() + index, tmp.Get());
-            tmp[index] = std::move(value);
-            std::move(vector_.Get() + index, end(), tmp.Get() + index + 1);
-            vector_.swap(tmp);
-        }
-        else {
-            std::move_backward(vector_.Get() + index, vector_.Get() + size_, vector_.Get() + size_ + 1);
-            vector_[index] = std::move(value);
-            ++size_;
-        }
-        return Iterator(vector_.Get() + index);
-    }
-    
+    // использует copy
     Iterator Insert(ConstIterator pos, const Type& value) {
         assert(pos >= cbegin() && pos <= cend());
         size_t index = (pos == end() ? size_ : pos - begin());
         if (size_ == capacity_) {
             if (capacity_ == 0) {
+                ArrayPtr<Type> tmp(1);
+                vector_.swap(tmp);
+                vector_[0] = value;
                 size_ = 1;
                 capacity_ = 1;
+                return begin();
+            }
+            ArrayPtr<Type> tmp(capacity_ *2);
+            std::copy(begin(), vector_.Get() + index, tmp.Get());
+            tmp[index] = value;
+            std::copy(vector_.Get() + index, end(), tmp.Get() + index + 1);
+            vector_.swap(tmp);
+            ++size_;
+            capacity_ *= 2;
+        }
+        else {
+            std::copy_backward(vector_.Get() + index, vector_.Get() + size_, vector_.Get() + size_ + 1);
+            vector_[index] = value;
+            ++size_;
+        }
+        return Iterator(vector_.Get() + index);
+    }
+    
+    // использует move
+    Iterator Insert(ConstIterator pos, Type&& value) {
+        assert(pos >= cbegin() && pos <= cend());
+        size_t index = (pos == end() ? size_ : pos - begin());
+        if (size_ == capacity_) {
+            if (capacity_ == 0) {
                 ArrayPtr<Type> tmp(1);
                 vector_.swap(tmp);
                 vector_[0] = std::move(value);
+                size_ = 1;
+                capacity_ = 1;
                 return begin();
             }
-            ++size_;
-            capacity_ *= 2;
             ArrayPtr<Type> tmp(capacity_ * 2);
             std::move(begin(), vector_.Get() + index, tmp.Get());
             tmp[index] = std::move(value);
             std::move(vector_.Get() + index, end(), tmp.Get() + index + 1);
             vector_.swap(tmp);
+            ++size_;
+            capacity_ *= 2;
         }
         else {
             std::move_backward(vector_.Get() + index, vector_.Get() + size_, vector_.Get() + size_ + 1);
@@ -220,6 +246,8 @@ public:
         return Iterator(vector_.Get() + index);
     }
     
+    // Удаляет элемент вектора в указанной позиции
+    // Возвращает итератор на элемент, следующий за удалённым
     Iterator Erase(ConstIterator pos) {
         assert(!IsEmpty());
         size_t index = pos - begin();
@@ -229,13 +257,14 @@ public:
     }
     
     // Задает ёмкость вектора
+    // тесты проходит, работа корректна
     void Reserve(size_t new_capacity) {
         if (new_capacity <= capacity_) {
             return;
         }
-        ArrayPtr<Type> tmp(new_capacity);
-        std::fill(tmp.Get(), tmp.Get() + size_, Type{});
-        vector_.swap(tmp);
+        ArrayPtr<Type> tmp(new_capacity); // временный массив нужного размера
+        //std::fill(tmp.Get(), tmp.Get() + size_, Type{});
+        vector_.swap(tmp); // меням местами содержимое контейнеров, соответственно, заполняем новый данными старого
         capacity_ = new_capacity;
     }
     
@@ -251,29 +280,29 @@ public:
     Iterator begin() noexcept {
         return Iterator(vector_.Get());
     }
-    
-    // Возвращает константный итератор на начало массива
-    // Для пустого массива может быть равен (или не равен) nullptr
-    ConstIterator begin() const noexcept {
-        return ConstIterator(vector_.Get());
-    }
-    
-    // Возвращает константный итератор на начало массива
-    // Для пустого массива может быть равен (или не равен) nullptr
-    ConstIterator cbegin() const noexcept {
-        return begin();
-    }
-    
+ 
     // Возвращает итератор на элемент, следующий за последним
     // Для пустого массива может быть равен (или не равен) nullptr
     Iterator end() noexcept {
         return Iterator(vector_.Get() + size_);
     }
  
+    // Возвращает константный итератор на начало массива
+    // Для пустого массива может быть равен (или не равен) nullptr
+    ConstIterator begin() const noexcept {
+        return ConstIterator(vector_.Get());
+    }
+ 
     // Возвращает итератор на элемент, следующий за последним
     // Для пустого массива может быть равен (или не равен) nullptr
     ConstIterator end() const noexcept {
         return ConstIterator(vector_.Get() + size_);
+    }
+ 
+    // Возвращает константный итератор на начало массива
+    // Для пустого массива может быть равен (или не равен) nullptr
+    ConstIterator cbegin() const noexcept {
+        return begin();
     }
  
     // Возвращает итератор на элемент, следующий за последним
@@ -300,20 +329,20 @@ template <typename Type>
 inline bool operator!=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
     return !(lhs == rhs);
 }
-
+ 
 template <typename Type>
 inline bool operator<(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
     return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
-
-template <typename Type>
-inline bool operator>(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
-    return rhs < lhs;
-}
-
+ 
 template <typename Type>
 inline bool operator<=(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
     return !(rhs < lhs);
+}
+ 
+template <typename Type>
+inline bool operator>(const SimpleVector<Type>& lhs, const SimpleVector<Type>& rhs) {
+    return rhs < lhs;
 }
  
 template <typename Type>
