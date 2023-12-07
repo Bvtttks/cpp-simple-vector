@@ -161,8 +161,6 @@ public:
         ArrayPtr<Type> tmp(new_size);
         std::move(vector_.Get(), vector_.Get() + size_, tmp.Get());
         std::generate(tmp.Get() + size_, tmp.Get() + new_size, [](){ return Type{}; });
-        // я думала-думала, но не догадалась, как без цикла мувать :`-(
-        // коллеги подсказали использовать generate
         vector_.swap(tmp);
         size_ = new_size;
         capacity_ = std::max(new_size, capacity_ * 2);
